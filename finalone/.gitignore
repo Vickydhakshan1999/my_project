@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Django stuff:
+*.log
+*.pot
+*.pyc
+*.sqlite3
+
+# Django migrations
+*/migrations/*
+
+# Ignore virtual environment
+venv/
+env/
+
+# IDE settings (for example, VSCode or PyCharm)
+.vscode/
+.idea/
+
+# Node.js dependencies
+node_modules/
+
+# Secret environment files
+.env

@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.contrib.postgres.fields import JSONField
+from django.db import models
 
 # Custom User Manager
 class UserManager(BaseUserManager):
@@ -25,10 +27,14 @@ class Role(models.Model):
     def __str__(self):
         return self.name
 
-# Custom User Model
+# Custom User Model 
 class User(AbstractBaseUser):
     name = models.CharField(max_length=256, unique=True)
     role = models.ForeignKey(Role, on_delete=models.CASCADE, null=True)
+    email = models.EmailField(max_length=254, unique=True)
+    # email = models.EmailField(unique=True, default="default@example.com")  
+    phone_number = models.CharField(max_length=15, blank=True, null=True)  # Custom field   blank=True, null=True
+    custom_fields = models.JSONField(blank=True, null=True)  #  JSON field
     
     # Additional fields for authentication
     is_active = models.BooleanField(default=True)
@@ -38,6 +44,7 @@ class User(AbstractBaseUser):
     objects = UserManager()
 
     USERNAME_FIELD = 'name'
+    REQUIRED_FIELDS = ['email', 'phone_number']
 
     def __str__(self):
         return self.name

@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.hashers import check_password
+# from finalone import serializers
+from finalone import serializers
 from finalone.models import User, Role  # Adjust the import based on your app name
 from finalone.models import User  # Adjust based on your app name
 from rest_framework_simplejwt.tokens import RefreshToken # type: ignore
@@ -14,6 +16,10 @@ import openpyxl
 from django.http import HttpResponse
 from finalone.models import User
 from rest_framework.parsers import MultiPartParser, FormParser
+from finalone.models import User, Role
+from finalone.fields import PhoneNumberField
+import re
+from finalone.serializers import UserSerializer  
 
 
 
@@ -27,6 +33,9 @@ class SignupAPIView(APIView):
         password = request.data.get('password')
         confirm_password = request.data.get('confirm_password')
         role_name = request.data.get('role')
+        phone_number_input = request.data.get('phone_number')  # Get phone_number from request 
+        email = request.data.get('email')
+        
 
         # Validate input
         if not name or not password or not confirm_password or not role_name:
@@ -34,19 +43,32 @@ class SignupAPIView(APIView):
         
         if password != confirm_password:
             return Response({"error": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+        
+         # Validate and format the phone number using PhoneNumberField
+        phone_number_field = PhoneNumberField()
+        try:
+            phone_number = phone_number_field.to_internal_value(phone_number_input)
+        except serializers.ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the role exists
         try:
             role = Role.objects.get(name=role_name)
         except Role.DoesNotExist:
             return Response({"error": "Role not found."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Capture additional fields
+        extra_fields = {key: value for key, value in request.data.items() if key not in ["name", "password", "confirm_password", "role", "phone_number", "email"]}
 
         # Create the user
         try:
             user = User(
                 name=name,
                 role=role,
-                password=make_password(password)  # Hash the password
+                email=request.data.get('email'),  # Save email
+                phone_number=phone_number,  # Set the phone number
+                password=make_password(password),  # Hash the password
+                custom_fields=extra_fields  # Store additional fields here
             )
             user.save()
             return Response({"message": "User created successfully!"}, status=status.HTTP_201_CREATED)
@@ -115,6 +137,7 @@ class UserCreateAPIView(APIView):
         name = request.data.get('name')
         password = request.data.get('password')
         role_name = request.data.get('role')
+        phone_number = request.data.get('phone_number')
 
         if not name or not password or not role_name:
             return Response({"error": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -131,18 +154,48 @@ class UserCreateAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# class UserDetailAPIView(APIView):
+#     def get(self, request, pk, *args, **kwargs):
+#         try:
+#             user = User.objects.get(pk=pk)
+#             serializer = UserSerializer(user)
+#             return Response({"name": user.name, "role": user.role.name, "phone_number" :  user.phone_number, "CustomField" : user.custom_fields}, status=status.HTTP_200_OK)
+#         except User.DoesNotExist:
+#             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
 class UserDetailAPIView(APIView):
     def get(self, request, pk, *args, **kwargs):
         try:
             user = User.objects.get(pk=pk)
-            return Response({"name": user.name, "role": user.role.name}, status=status.HTTP_200_OK)
+
+            # Build the response dictionary
+            response_data = {
+                "name": user.name,
+                "role": user.role.name,  # Assuming `role` is a ForeignKey to Role
+                "phone_number": user.phone_number,
+                "email": user.email,  
+                
+            }
+
+            # Include additional fields from the custom_fields JSON
+            if user.custom_fields:
+                for key, value in user.custom_fields.items():
+                    response_data[key] = value
+
+            return Response(response_data, status=status.HTTP_200_OK)
+        
         except User.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-class UserUpdateAPIView(APIView):
+
+class UserUpdateAPIView(APIView): 
     def put(self, request, pk, *args, **kwargs):
         try:
             user = User.objects.get(pk=pk)
+# Create an instance of the PhoneNumberField
+            phone_number_field = PhoneNumberField()
+            formatted_phone_number = phone_number_field.to_representation(user.phone_number)
         except User.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
